@@ -11,6 +11,7 @@ import com.caioribasregis.desafiovotacao.client.StatusVotoAssociado;
 import com.caioribasregis.desafiovotacao.client.ValidadorCpfClient;
 import com.caioribasregis.desafiovotacao.domain.Pauta;
 import com.caioribasregis.desafiovotacao.domain.SessaoVotacao;
+import com.caioribasregis.desafiovotacao.domain.StatusVotacao;
 import com.caioribasregis.desafiovotacao.domain.Voto;
 import com.caioribasregis.desafiovotacao.dto.VotoRequest;
 import com.caioribasregis.desafiovotacao.dto.VotoResponse;
@@ -42,12 +43,12 @@ public class VotoService {
 		SessaoVotacao sessao = sessaoVotacaoRepository.findByPautaId(pautaId)
 				.orElseThrow(() -> new RegraNegocioException("A pauta " + pautaId + " ainda não tem sessão de votação"));
 
-		LocalDateTime agora = LocalDateTime.now(clock);
-		if (agora.isBefore(sessao.getDataHoraAbertura())) {
-			throw new RegraNegocioException("A sessão de votação da pauta " + pautaId + " ainda não começou");
-		}
-		if (!agora.isBefore(sessao.getDataHoraFecho())) {
-			throw new RegraNegocioException("A sessão de votação da pauta " + pautaId + " está encerrada");
+		switch (StatusVotacao.de(sessao, LocalDateTime.now(clock))) {
+			case NAO_INICIADA -> throw new RegraNegocioException(
+					"A sessão de votação da pauta " + pautaId + " ainda não começou");
+			case ENCERRADA -> throw new RegraNegocioException(
+					"A sessão de votação da pauta " + pautaId + " está encerrada");
+			case EM_ANDAMENTO -> { }
 		}
 
 		String cpf = request.cpf();
