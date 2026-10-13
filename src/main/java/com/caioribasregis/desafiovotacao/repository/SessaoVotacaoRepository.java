@@ -6,4 +6,6 @@ import com.caioribasregis.desafiovotacao.domain.SessaoVotacao;
 
 public interface SessaoVotacaoRepository extends JpaRepository<SessaoVotacao, Long> {
 
+	boolean existsByPautaId(Long pautaId);
+
 }

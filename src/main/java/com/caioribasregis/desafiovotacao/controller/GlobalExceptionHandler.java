@@ -9,6 +9,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.caioribasregis.desafiovotacao.exception.ConflitoException;
+import com.caioribasregis.desafiovotacao.exception.RecursoNaoEncontradoException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -21,6 +24,16 @@ public class GlobalExceptionHandler {
 		ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Dados inválidos");
 		problema.setProperty("erros", erros);
 		return problema;
+	}
+
+	@ExceptionHandler(RecursoNaoEncontradoException.class)
+	public ProblemDetail handleNaoEncontrado(RecursoNaoEncontradoException ex) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+	}
+
+	@ExceptionHandler(ConflitoException.class)
+	public ProblemDetail handleConflito(ConflitoException ex) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
 	}
 
 }
