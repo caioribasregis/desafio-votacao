@@ -60,7 +60,7 @@ class VotoIntegrationTest {
 	private ValidadorCpfClient validadorCpfClient;
 
 	@Test
-	void votoBemSucedidoFicaGravado() throws Exception {
+	void votoBemSucedidoFicaGravado(CapturedOutput output) throws Exception {
 		Long pautaId = pautaComSessaoAberta();
 		when(validadorCpfClient.consultarStatus(CPF)).thenReturn(StatusVotoAssociado.ABLE_TO_VOTE);
 
@@ -71,26 +71,33 @@ class VotoIntegrationTest {
 				.andExpect(jsonPath("$.escolha").value("SIM"));
 
 		assertThat(votoRepository.existsByPautaIdAndCpfAssociado(pautaId, CPF)).isTrue();
+		assertLog(output, "INFO", "Voto registado: votoId=");
+		assertLog(output, "INFO", "pautaId=" + pautaId + ", escolha=SIM");
+		assertThat(output).doesNotContain(CPF);
 	}
 
 	@Test
-	void pautaInexistenteDevolve404() throws Exception {
+	void pautaInexistenteDevolve404(CapturedOutput output) throws Exception {
 		votar(999_999L, "SIM")
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.detail").value("Pauta 999999 não encontrada"));
+		assertLog(output, "WARN", "Voto recusado: pautaId=999999, motivo=pauta inexistente");
+		assertThat(output).doesNotContain(CPF);
 	}
 
 	@Test
-	void pautaSemSessaoDevolve422() throws Exception {
+	void pautaSemSessaoDevolve422(CapturedOutput output) throws Exception {
 		Long pautaId = novaPauta().getId();
 
 		votar(pautaId, "SIM")
 				.andExpect(status().isUnprocessableEntity())
 				.andExpect(jsonPath("$.detail").value("A pauta " + pautaId + " ainda não tem sessão de votação"));
+		assertLog(output, "WARN", "Voto recusado: pautaId=" + pautaId + ", motivo=pauta sem sessão de votação");
+		assertThat(output).doesNotContain(CPF);
 	}
 
 	@Test
-	void sessaoEncerradaDevolve422() throws Exception {
+	void sessaoEncerradaDevolve422(CapturedOutput output) throws Exception {
 		Pauta pauta = novaPauta();
 		LocalDateTime abertura = LocalDateTime.now().minusMinutes(10);
 		sessaoVotacaoRepository.save(SessaoVotacao.builder()
@@ -100,6 +107,8 @@ class VotoIntegrationTest {
 				.andExpect(status().isUnprocessableEntity())
 				.andExpect(jsonPath("$.detail").value("A sessão de votação da pauta " + pauta.getId() + " está encerrada"));
 		verifyNoInteractions(validadorCpfClient);
+		assertLog(output, "WARN", "Voto recusado: pautaId=" + pauta.getId() + ", motivo=sessão encerrada");
+		assertThat(output).doesNotContain(CPF);
 	}
 
 	@Test
@@ -112,6 +121,7 @@ class VotoIntegrationTest {
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.detail").value("Este CPF já votou na pauta " + pautaId))
 				.andExpect(content().string(not(containsString(CPF))));
+		assertLog(output, "WARN", "Voto recusado: pautaId=" + pautaId + ", motivo=CPF já votou nesta pauta");
 		assertThat(output).doesNotContain(CPF);
 	}
 
@@ -124,6 +134,7 @@ class VotoIntegrationTest {
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.detail").value("CPF inválido"))
 				.andExpect(content().string(not(containsString(CPF))));
+		assertLog(output, "WARN", "Voto recusado: pautaId=" + pautaId + ", motivo=CPF inválido segundo o serviço de validação");
 		assertThat(output).doesNotContain(CPF);
 		assertThat(votoRepository.existsByPautaIdAndCpfAssociado(pautaId, CPF)).isFalse();
 	}
@@ -137,8 +148,16 @@ class VotoIntegrationTest {
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.detail").value("O associado não está apto a votar"))
 				.andExpect(content().string(not(containsString(CPF))));
+		assertLog(output, "WARN", "Voto recusado: pautaId=" + pautaId + ", motivo=associado não apto a votar (UNABLE_TO_VOTE)");
 		assertThat(output).doesNotContain(CPF);
 		assertThat(votoRepository.existsByPautaIdAndCpfAssociado(pautaId, CPF)).isFalse();
+	}
+
+	/** Verifica que existe uma linha de log com o nível e o texto indicados. */
+	static void assertLog(CapturedOutput output, String nivel, String texto) {
+		assertThat(output.getAll().lines())
+				.as("linha de log %s com \"%s\"", nivel, texto)
+				.anyMatch(linha -> linha.contains(" " + nivel + " ") && linha.contains(texto));
 	}
 
 	private Pauta novaPauta() {

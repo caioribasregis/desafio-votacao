@@ -9,7 +9,9 @@ import com.caioribasregis.desafiovotacao.dto.PautaResponse;
 import com.caioribasregis.desafiovotacao.repository.PautaRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PautaService {
@@ -22,7 +24,9 @@ public class PautaService {
 				.titulo(request.titulo().trim())
 				.descricao(request.descricao())
 				.build();
-		return PautaResponse.from(pautaRepository.save(pauta));
+		Pauta gravada = pautaRepository.save(pauta);
+		log.info("Pauta criada: pautaId={}", gravada.getId());
+		return PautaResponse.from(gravada);
 	}
 
 }
