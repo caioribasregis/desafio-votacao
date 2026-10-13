@@ -27,7 +27,7 @@ public class ValidadorCpfClientFake implements ValidadorCpfClient {
 	@Override
 	public StatusVotoAssociado consultarStatus(String cpf) {
 		if (!random.nextBoolean()) {
-			throw new CpfInvalidoException(cpf);
+			throw new CpfInvalidoException();
 		}
 		return random.nextBoolean() ? StatusVotoAssociado.ABLE_TO_VOTE : StatusVotoAssociado.UNABLE_TO_VOTE;
 	}

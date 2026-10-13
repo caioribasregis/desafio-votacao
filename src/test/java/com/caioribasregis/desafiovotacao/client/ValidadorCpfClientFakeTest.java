@@ -29,7 +29,7 @@ class ValidadorCpfClientFakeTest {
 		assertThatThrownBy(() -> validador.consultarStatus(CPF))
 				.isInstanceOf(CpfInvalidoException.class)
 				.isInstanceOf(RecursoNaoEncontradoException.class)
-				.hasMessage("CPF 12345678901 inválido");
+				.hasMessage("CPF inválido");
 	}
 
 	@Test
