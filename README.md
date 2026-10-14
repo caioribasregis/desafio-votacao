@@ -35,6 +35,10 @@ Os testes de integração usam um banco H2 em memória e não alteram os dados d
 
 > Se a IDE tiver compilado o projeto na pasta `target/` e os testes falharem com `Unresolved compilation problem`, execute `./mvnw clean test` para recompilar tudo com o Maven.
 
+O teste de desempenho (veja [Performance](#performance-bônus-2)) fica fora do build normal, por ser mais demorado. Para rodá-lo:
+
+./mvnw clean test -Pperformance
+
 # Swagger UI
 
 Com a aplicação rodando, abra no navegador:
@@ -141,6 +145,35 @@ O CPF é um dado pessoal. A aplicação nunca o grava nos logs nem nas mensagens
 Existem testes que garantem essa regra: eles capturam a saída da aplicação durante votos aceitos e recusados, e durante uma violação real da restrição única, e falham se o CPF aparecer.
 
 O CPF só aparece na resposta de um voto aceito, retornada ao próprio cliente que o enviou.
+
+### Performance (bônus 2)
+
+A aplicação foi pensada para cenários com centenas de milhares de votos:
+
+- **Contagem no banco:** o resultado é calculado com uma única consulta `count ... group by escolha`, que retorna no máximo duas linhas (SIM e NAO). Os votos nunca são carregados para a memória, então o custo de memória é o mesmo com 10 ou 1 milhão de votos.
+- **Índices certos:** a restrição única `(pauta_id, cpf_associado)` cria um índice que atende tanto a verificação de voto duplicado quanto a contagem por pauta.
+- **Poucas consultas por voto:** registrar um voto faz três leituras simples por chave (pauta, sessão e voto duplicado) e um insert.
+- **Sem SQL no console:** o `spring.jpa.show-sql` fica desligado, porque imprimir cada comando SQL pesa muito com alto volume. Para depurar, dá para ligar com `-Dspring.jpa.show-sql=true`.
+
+O teste `VotacaoPerformanceTest` pré-carrega **300 mil votos** em uma pauta e mede, pela API completa:
+
+| Cenário | Resultado medido |
+|---|---|
+| Consulta do resultado com 300 mil votos | ~5 ms (p95 ~6 ms) |
+| Registro de um voto com 300 mil já gravados | ~2,5 ms (p95 ~6 ms) |
+| 4.000 votos simultâneos em 16 threads | ~5.600 votos/s, todos aceitos |
+| Mesmo CPF em 50 requisições simultâneas | 1 aceita, 49 recusadas com 409 |
+| Contagem final | confere exatamente com todos os votos gravados |
+
+Os números são de uma máquina de desenvolvimento, com H2 em memória e sem rede, então servem como ordem de grandeza. Os limites verificados no teste são folgados de propósito: o objetivo é detectar regressões graves, como a contagem passar a carregar os votos para a memória, e não comparar máquinas.
+
+Duas decisões vieram das medições:
+- **Desligar o `show-sql`:** com 16 threads, os votos por segundo subiram de cerca de 1.100 para cerca de 5.600.
+- **Não criar um índice extra:** testei um índice em `(pauta_id, escolha)` para a contagem, e ele não trouxe ganho mensurável, porque o índice da restrição única já atende a consulta. Como todo índice deixa as gravações mais caras, ele ficou de fora.
+
+O teste também confirma, sob concorrência real, a estratégia de voto único: com 50 requisições simultâneas do mesmo CPF, a restrição do banco garante que só um voto é gravado.
+
+Em produção, os próximos passos seriam trocar o H2 por um banco como o PostgreSQL e, se a consulta de resultado fosse muito frequente durante a votação, guardar o resultado em cache por alguns segundos.
 
 ---
 
