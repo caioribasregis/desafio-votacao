@@ -171,9 +171,40 @@ Duas decisões vieram das medições:
 - **Desligar o `show-sql`:** com 16 threads, os votos por segundo subiram de cerca de 1.100 para cerca de 5.600.
 - **Não criar um índice extra:** testei um índice em `(pauta_id, escolha)` para a contagem, e ele não trouxe ganho mensurável, porque o índice da restrição única já atende a consulta. Como todo índice deixa as gravações mais caras, ele ficou de fora.
 
-O teste também confirma, sob concorrência real, a estratégia de voto único: com 50 requisições simultâneas do mesmo CPF, a restrição do banco garante que só um voto é gravado.
+### Versionamento da API (bônus 3)
 
-Em produção, os próximos passos seriam trocar o H2 por um banco como o PostgreSQL e, se a consulta de resultado fosse muito frequente durante a votação, guardar o resultado em cache por alguns segundos.
+**Estratégia escolhida: versão no caminho da URL** (`/api/v1/...`). Todos os endpoints já nascem na `v1`. O prefixo fica centralizado na classe `ApiVersao`, em vez de ser repetido em cada controller.
+
+**Por que na URL.** O cliente desta API é um aplicativo móvel. Em produção convivem várias versões do app instaladas nos celulares, e não dá para obrigar todo mundo a atualizar ao mesmo tempo. Com a versão no caminho:
+- cada versão do app chama explicitamente a versão da API que conhece, e versões antigas continuam funcionando enquanto a `v1` existir;
+- a versão fica visível em logs, métricas, Swagger e no gateway ou proxy, o que facilita o roteamento e o monitoramento de uso;
+- é simples de testar: dá para chamar no navegador ou no `curl` sem cabeçalhos especiais.
+
+**Alternativas consideradas:**
+
+| Estratégia | Exemplo | Por que não foi a escolhida |
+|---|---|---|
+| Cabeçalho customizado | `X-API-Version: 2` | Fica invisível na URL, é mais difícil de testar e de rotear, e é fácil de esquecer no cliente. |
+| Media type (content negotiation) | `Accept: application/vnd.votacao.v2+json` | É a forma mais "purista" de REST, mas é mais complexa para o app e para a documentação, sem ganho real aqui. |
+| Parâmetro de consulta | `?versao=2` | Mistura a versão com os filtros da requisição e atrapalha o cache. |
+
+**Quando criar uma nova versão.** A versão no caminho é só a versão *major*, e muda apenas quando há uma quebra de contrato:
+
+| Mudança | Nova versão? |
+|---|---|
+| Novo endpoint | Não, entra na `v1` |
+| Novo campo **opcional** na requisição ou novo campo na resposta | Não, os clientes devem ignorar campos que não conhecem |
+| Remover ou renomear um campo, ou mudar o tipo dele | **Sim, `v2`** |
+| Tornar obrigatório um campo que era opcional | **Sim, `v2`** |
+| Mudar o significado de um campo, de um código de status ou de uma regra visível ao cliente | **Sim, `v2`** |
+
+**Como uma `v2` seria criada:**
+1. Adicionar `ApiVersao.V2 = "/api/v2"` e criar controllers e DTOs próprios da v2, por exemplo em `controller.v2` e `dto.v2`.
+2. Reaproveitar os mesmos serviços e o mesmo banco. A diferença entre versões fica só na camada de entrada e saída: DTOs e mapeamento.
+3. Manter a `v1` funcionando durante um período de transição, marcada como `deprecated` no OpenAPI e com os cabeçalhos `Deprecation` e `Sunset` nas respostas, para avisar os clientes da data de desligamento.
+4. Acompanhar pelos logs e métricas quanto a `v1` ainda é usada, e removê-la só quando o uso for residual e as versões antigas do app estiverem fora de suporte.
+
+Ao migrar para o Spring Boot 4 (Spring Framework 7), dá para usar o suporte nativo a versionamento de API do framework, mantendo a mesma estratégia de versão no caminho.
 
 ---
 

@@ -24,7 +24,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/pautas")
+@RequestMapping(ApiVersao.V1 + "/pautas")
 @RequiredArgsConstructor
 @Tag(name = "Pautas", description = "Cadastro das pautas a votar")
 public class PautaController {

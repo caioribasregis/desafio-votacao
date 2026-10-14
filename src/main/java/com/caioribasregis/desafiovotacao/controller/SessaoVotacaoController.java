@@ -23,7 +23,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/pautas/{pautaId}/sessao")
+@RequestMapping(ApiVersao.V1 + "/pautas/{pautaId}/sessao")
 @RequiredArgsConstructor
 @Tag(name = "Sessões de votação", description = "Abertura da sessão de votação de uma pauta")
 public class SessaoVotacaoController {

@@ -18,7 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/pautas/{pautaId}/resultado")
+@RequestMapping(ApiVersao.V1 + "/pautas/{pautaId}/resultado")
 @RequiredArgsConstructor
 @Tag(name = "Resultado", description = "Contagem dos votos e resultado da votação")
 public class ResultadoVotacaoController {
